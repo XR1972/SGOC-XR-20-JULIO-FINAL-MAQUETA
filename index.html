@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>SGOC XR - MAQUETA 20 DE JULIO</title>
+    <title>SGOC XR - 20 DE JULIO</title>
 
     <script src="https://cdn.babylonjs.com/babylon.js"></script>
     <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
@@ -38,30 +38,25 @@ const createScene = async function () {
     scene.collisionsEnabled = true;
     scene.gravity = new BABYLON.Vector3(0, -0.5, 0);
 
-   // ===== CAMARA PARA MAQUETA =====
-const camera = new BABYLON.ArcRotateCamera(
-    "cameraMaqueta",
-    BABYLON.Tools.ToRadians(45),
-    BABYLON.Tools.ToRadians(65),
-    2.20,
-    new BABYLON.Vector3(0, 0.95, 0),
-    scene
-);
+    // Cámara inicial
+    const camera = new BABYLON.UniversalCamera(
+        "camera",
+        new BABYLON.Vector3(0, 1.70, -5),
+        scene
+    );
 
-camera.attachControl(canvas, true);
-camera.minZ = 0.01;
+    camera.attachControl(canvas, true);
+    camera.speed = 0.06;
+    camera.minZ = 0.05;
+    
+    camera.applyGravity = true;
+    camera.checkCollisions = true;
+    camera.ellipsoid = new BABYLON.Vector3(0.4, 0.85, 0.4);
 
-// Limites de zoom
-camera.lowerRadiusLimit = 0.70;
-camera.upperRadiusLimit = 4.00;
-
-// Limites verticales para no voltear la camara
-camera.lowerBetaLimit = BABYLON.Tools.ToRadians(20);
-camera.upperBetaLimit = BABYLON.Tools.ToRadians(85);
-
-// Suavidad de movimiento
-camera.wheelPrecision = 50;
-camera.panningSensibility = 1000;
+    camera.keysUp.push(87);     // W
+    camera.keysDown.push(83);   // S
+    camera.keysLeft.push(65);   // A
+    camera.keysRight.push(68);  // D
 
     // Luz
     const light = new BABYLON.HemisphericLight(
@@ -71,6 +66,26 @@ camera.panningSensibility = 1000;
     );
 
     light.intensity = 1.2;
+   
+// Cielo 360°
+const skybox = BABYLON.MeshBuilder.CreateBox(
+    "skyBox",
+    { size: 1000 },
+    scene
+);
+
+const skyboxMaterial = new BABYLON.StandardMaterial("skyBoxMaterial", scene);
+skyboxMaterial.backFaceCulling = false;
+skyboxMaterial.disableLighting = true;
+
+skyboxMaterial.reflectionTexture =
+    new BABYLON.HDRCubeTexture("./Cielo.hdr", scene, 256);
+
+skyboxMaterial.reflectionTexture.coordinatesMode =
+    BABYLON.Texture.SKYBOX_MODE;
+
+skybox.material = skyboxMaterial;
+skybox.infiniteDistance = true;
 
     // Cargar edificio
     const result = await BABYLON.SceneLoader.ImportMeshAsync(
@@ -84,7 +99,19 @@ camera.panningSensibility = 1000;
     result.meshes.forEach(mesh => {
     mesh.checkCollisions = true;
     });
+const jugador = BABYLON.MeshBuilder.CreateBox(
+    "jugadorColision",
+    {
+        width: 0.6,
+        height: 1.7,
+        depth: 0.6
+    },
+    scene
+);
 
+jugador.isVisible = false;
+jugador.checkCollisions = true;
+jugador.ellipsoid = new BABYLON.Vector3(0.3, 0.85, 0.3);
 
     // Encuadrar automaticamente el modelo cargado
 const candidatos = result.meshes.filter(m =>
@@ -92,7 +119,6 @@ const candidatos = result.meshes.filter(m =>
     m.getTotalVertices() > 0
 );
 
-// Centro aproximado del grupo principal
 const centros = candidatos.map(m =>
     m.getBoundingInfo().boundingBox.centerWorld
 );
@@ -109,7 +135,6 @@ const centroPrincipal = new BABYLON.Vector3(
     medio(zs)
 );
 
-// Solo geometría cercana al edificio real
 const meshes = candidatos.filter(m => {
     const c = m.getBoundingInfo().boundingBox.centerWorld;
 
@@ -119,82 +144,23 @@ const meshes = candidatos.filter(m => {
         Math.abs(c.z - centroPrincipal.z) < 20
     );
 });
-    
+
 const bounds = BABYLON.Mesh.MinMax(meshes);
 const center = BABYLON.Vector3.Center(bounds.min, bounds.max);
 const size = bounds.max.subtract(bounds.min);
 const maxSize = Math.max(size.x, size.y, size.z);
-console.log("BOUNDS MIN:", bounds.min);
-console.log("BOUNDS MAX:", bounds.max);
-console.log("CENTER:", center);
-console.log("SIZE:", size);
-console.log("MAX SIZE:", maxSize);
-  
 
-    // ===== MODO MAQUETA: reducir modelo a 80 cm =====
-const tamanoMaqueta = 1.20;
-
-// Dimensión horizontal real del proyecto
-const tamanoHorizontal = Math.max(size.x, size.z);
-
-// Escala automática
-const escalaMaqueta = tamanoMaqueta / tamanoHorizontal;
-
-const maquetaRoot = new BABYLON.TransformNode("maquetaRoot", scene);
-
-result.meshes
-    .filter(mesh => !mesh.parent)
-    .forEach(mesh => {
-        mesh.parent = maquetaRoot;
-    });
-
-maquetaRoot.scaling = new BABYLON.Vector3(
-    escalaMaqueta,
-    escalaMaqueta,
-    escalaMaqueta
+camera.position = new BABYLON.Vector3(
+    center.x,
+    bounds.min.y + 1.50,
+    bounds.min.z - maxSize * 0.35
 );
 
-    // ===== POSICIONAR MAQUETA SOBRE MESA =====
-const alturaMesa = 0.80;
-
-// ===== PIVOTE CENTRAL FIJO DE LA MAQUETA =====
-const giroRoot = new BABYLON.TransformNode("giroRoot", scene);
-
-// El pivote queda exactamente en el centro de la mesa
-giroRoot.position = new BABYLON.Vector3(
-    0,
-    alturaMesa,
-    0
-);
-
-// El edificio pasa a depender del pivote
-maquetaRoot.parent = giroRoot;
-
-// Posición LOCAL respecto al pivote
-maquetaRoot.position = new BABYLON.Vector3(
-    -center.x * escalaMaqueta,
-    -bounds.min.y * escalaMaqueta,
-    -center.z * escalaMaqueta
-);
-// Mesa virtual
-const mesa = BABYLON.MeshBuilder.CreateBox(
-    "mesaMaqueta",
-    {
-        width: tamanoMaqueta,
-        depth: tamanoMaqueta,
-        height: 0.05
-    },
-    scene
-);
-    
-// La mesa gira junto con toda la maqueta
-mesa.parent = giroRoot;
-
-mesa.position = new BABYLON.Vector3(
-    0,
-    -0.025,
-    0
-);
+camera.setTarget(new BABYLON.Vector3(
+    center.x,
+    bounds.min.y + 1.50,
+    center.z
+));
 
 console.log("CENTRO MODELO:", center);
 console.log("TAMANO MODELO:", size);
@@ -207,77 +173,92 @@ const xr = await scene.createDefaultXRExperienceAsync({
     disableTeleportation: true
 });
         
-  // ===== GIRO XR DE LA MAQUETA SOBRE SU EJE =====
-let giroJoystickX = 0;
-let giroJoystickY = 0;
+const xrCamera = xr.baseExperience.camera;
+
+jugador.position.copyFrom(xrCamera.position);
+
+
+        
+   // Colisiones de la cámara XR
+
+
+const featuresManager = xr.baseExperience.featuresManager;
+
 let gripPressed = false;
+/*
+featuresManager.enableFeature(
+    BABYLON.WebXRFeatureName.MOVEMENT,
+    "latest",
+    {
+        xrInput: xr.input,
+        movementOrientationFollowsViewerPose: false,
+        movementSpeed: 0.02,
+        rotationSpeed: 0.05
+    }
+);
+*/
 
-xr.input.onControllerAddedObservable.add((xrController) => {
+        xr.input.onControllerAddedObservable.add((xrController) => {
 
-    if (xrController.inputSource.handedness !== "right") return;
+   if (xrController.inputSource.handedness !== "right") return;
 
     xrController.onMotionControllerInitObservable.add((motionController) => {
-    const grip = motionController.getComponentOfType("squeeze");
 
-    if (grip) {
-        grip.onButtonStateChangedObservable.add((component) => {
-            gripPressed = component.pressed;
+        const grip = motionController.getComponentOfType("squeeze");
+
+if (grip) {
+    grip.onButtonStateChangedObservable.add((component) => {
+        gripPressed = component.pressed;
     });
 }
-        
-        const joystick = motionController.getComponent("xr-standard-thumbstick");
 
-        if (!joystick) return;
+        const thumbsticks = motionController.getAllComponentsOfType("thumbstick");
+        if (!thumbsticks.length) return;
 
-        joystick.onAxisValueChangedObservable.add((axes) => {
-            giroJoystickX = axes.x;
-            giroJoystickY = axes.y;
-        });
-    });
+        const stick = thumbsticks[0];
+    let stickX = 0;
+    let stickY = 0;
+
+    stick.onAxisValueChangedObservable.add((axes) => {
+        stickX = Math.abs(axes.x) > 0.15 ? axes.x : 0;
+         stickY = Math.abs(axes.y) > 0.15 ? axes.y : 0;
 });
 
- scene.onBeforeRenderObservable.add(() => {
+        scene.onBeforeRenderObservable.add(() => {
 
-    // Giro horizontal 360°
-    if (Math.abs(giroJoystickX) > 0.15) {
-        giroRoot.rotation.y += giroJoystickX * 0.025;
+    const xrCamera = xr.baseExperience.camera;
+
+    // Dirección hacia adelante según la orientación actual
+    const forward = xrCamera.getDirection(BABYLON.Axis.Z);
+    forward.y = 0;
+    forward.normalize();
+
+    // Dirección lateral
+    const right = BABYLON.Vector3.Cross(BABYLON.Axis.Y, forward);
+    right.normalize();
+
+    const velocidad = 0.375;
+
+    // Adelante / atrás siempre funciona
+    xrCamera.position.addInPlace(
+        forward.scale(-stickY * velocidad)
+    );
+
+    // Sin grip: izquierda / derecha = desplazamiento lateral
+    if (!gripPressed) {
+        xrCamera.position.addInPlace(
+            right.scale(stickX * velocidad)
+        );
     }
 
-    // Inclinación limitada
-    // Sin grip: inclinación limitada
-if (!gripPressed && Math.abs(giroJoystickY) > 0.15) {
+    // Con grip: izquierda / derecha = giro
+    if (gripPressed && Math.abs(stickX) > 0.15) {
+        xrCamera.cameraRotation.y += stickX * 0.003;
+    }
 
-    giroRoot.rotation.x += giroJoystickY * 0.005;
+});
 
-    const limiteInclinacion = BABYLON.Tools.ToRadians(10);
-
-    giroRoot.rotation.x = BABYLON.Scalar.Clamp(
-        giroRoot.rotation.x,
-        -limiteInclinacion,
-        limiteInclinacion
-    );
-}
-
-// Con grip: acercar / alejar
-if (gripPressed && Math.abs(giroJoystickY) > 0.15) {
-
-    const velocidadZoom = 0.01;
-
-    giroRoot.scaling.x += -giroJoystickY * velocidadZoom;
-    giroRoot.scaling.y += -giroJoystickY * velocidadZoom;
-    giroRoot.scaling.z += -giroJoystickY * velocidadZoom;
-
-    const escalaMin = 0.60;
-    const escalaMax = 2.50;
-
-    const escalaNueva = BABYLON.Scalar.Clamp(
-        giroRoot.scaling.x,
-        escalaMin,
-        escalaMax
-    );
-
-    giroRoot.scaling.setAll(escalaNueva);
-}
+    });
 
 });
         console.log("SGOC XR ACTIVO");
@@ -306,4 +287,17 @@ window.addEventListener("resize", function () {
 
 </body>
 </html>
-<!D
+
+
+
+
+
+
+
+
+
+
+
+
+
+
