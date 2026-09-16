@@ -6,6 +6,7 @@
 
     <script src="https://cdn.babylonjs.com/babylon.js"></script>
     <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+    <script src="https://cdn.babylonjs.com/materialsLibrary/babylonjs.materials.min.js"></script>
 
     <style>
         html, body {
@@ -67,22 +68,18 @@ const createScene = async function () {
 
     light.intensity = 1.2;
    
-// Cielo 360°
-const skybox = BABYLON.MeshBuilder.CreateBox(
-    "skyBox",
-    { size: 1000 },
-    scene
-);
-
-const skyboxMaterial = new BABYLON.StandardMaterial("skyBoxMaterial", scene);
+// Cielo procedural - despejado y brillante
+const skybox = BABYLON.MeshBuilder.CreateBox("skyBox", { size: 1000 }, scene);
+const skyboxMaterial = new BABYLON.SkyMaterial("skyBoxMaterial", scene);
 skyboxMaterial.backFaceCulling = false;
-skyboxMaterial.disableLighting = true;
 
-skyboxMaterial.reflectionTexture =
-    new BABYLON.HDRCubeTexture("./Cielo.hdr", scene, 256);
-
-skyboxMaterial.reflectionTexture.coordinatesMode =
-    BABYLON.Texture.SKYBOX_MODE;
+skyboxMaterial.luminance = 1;
+skyboxMaterial.turbidity = 8;
+skyboxMaterial.rayleigh = 1.5;
+skyboxMaterial.mieCoefficient = 0.004;
+skyboxMaterial.mieDirectionalG = 0.85;
+skyboxMaterial.inclination = 0.47;
+skyboxMaterial.azimuth = 0.25;
 
 skybox.material = skyboxMaterial;
 skybox.infiniteDistance = true;
